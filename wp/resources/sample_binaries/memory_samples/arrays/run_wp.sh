@@ -13,7 +13,8 @@ run () {
     --wp-file2=main_2.bpj \
     --wp-function=foo_get \
     --wp-output-vars=RAX,RBX,RSP,RBP,R12,R13,R14,R15 \
-    --wp-precond="(assert (bvult RDI_orig #x000000000000000a))"
+    --wp-mem-offset=false \
+    --wp-rewrite-pointers=true
 
 }
 

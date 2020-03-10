@@ -97,20 +97,25 @@ let analyze_proj (proj : project) (var_gen : Env.var_gen) (ctx : Z3.context)
     (Sub.to_string main_sub) Constr.pp_constr pre;
   (pre, env, env)
 
-(* If an offset is specified, generates a function of the address of a memory read in
+let get_symbols (file : string) : Symbol.t list =
+  (* Chopping off the bpj to get the original binaries rather than the saved
+     project files. *)
+  file
+  |> String.chop_suffix_exn ~suffix:".bpj"
+  |> Symbol.get_symbols
+
+let rewrite_ptrs (rewrite : bool) (orig : Symbol.t list) (modif : Symbol.t list)
+    (sub : Sub.t) : Sub.t =
+  if rewrite then
+    Symbol.rewrite_pointers ~orig ~modif sub
+  else
+    sub
+
+(* If offset is set to true, generates a function of the address of a memory read in
    the original binary to the address plus an offset in the modified binary. *)
-let get_mem_offsets (calc_offsets : bool) (ctx : Z3.context) (file1 : string)
-    (file2 : string) : Constr.z3_expr -> Constr.z3_expr =
+let get_mem_offsets (calc_offsets : bool) (ctx : Z3.context) (syms_orig : Symbol.t list)
+    (syms_mod : Symbol.t list) : Constr.z3_expr -> Constr.z3_expr =
   if calc_offsets then
-    let get_symbols file =
-      (* Chopping off the bpj to get the original binaries rather than the saved
-         project files. *)
-      file
-      |> String.chop_suffix_exn ~suffix:".bpj"
-      |> Symbol.get_symbols
-    in
-    let syms_orig = get_symbols file1 in
-    let syms_mod = get_symbols file2 in
     Symbol.offset_constraint ~orig:syms_orig ~modif:syms_mod ctx
   else
     fun addr -> addr
@@ -125,17 +130,21 @@ let compare_projs (proj : project) (file1: string) (file2 : string)
     ~pre_cond:(pre_cond : string)
     ~post_cond:(post_cond : string)
     ~mem_offset:(mem_offset : bool)
+    ~rewrite_pointers:(rewrite_pointers : bool)
   : Constr.t * Env.t * Env.t =
   let prog1 = Program.Io.read file1 in
   let prog2 = Program.Io.read file2 in
+  let syms1 = get_symbols file1 in
+  let syms2 = get_symbols file2 in
   (* Currently using the dummy binary's project to determine the architecture
      until we discover a better way of determining the architecture from a program. *)
   let arch = Project.arch proj in
   let subs1 = Term.enum sub_t prog1 in
   let subs2 = Term.enum sub_t prog2 in
   let main_sub1 = find_func_err subs1 func in
-  let main_sub2 = find_func_err subs2 func in
-  let mem_offsets = get_mem_offsets mem_offset ctx file1 file2 in
+  let main_sub2 = find_func_err subs2 func
+                  |> rewrite_ptrs rewrite_pointers syms1 syms2 in
+  let mem_offsets = get_mem_offsets mem_offset ctx syms1 syms2 in
   let env2 =
     let to_inline2 = match_inline to_inline subs2 in
     let env2 = Pre.mk_env ctx var_gen ~subs:subs2 ~arch:arch ~to_inline:to_inline2
@@ -184,6 +193,7 @@ let main (file1 : string) (file2 : string)
     ~print_path:(print_path : bool)
     ~use_fun_input_regs:(use_fun_input_regs : bool)
     ~mem_offset:(mem_offset : bool)
+    ~rewrite_pointers:(rewrite_pointers : bool)
     (proj : project) : unit =
   let ctx = Env.mk_ctx () in
   let var_gen = Env.mk_var_gen () in
@@ -193,7 +203,7 @@ let main (file1 : string) (file2 : string)
   let pre, env1, env2 =
     if compare || has_files_to_compare then
       compare_projs proj file1 file2 var_gen ctx ~func ~check_calls ~to_inline
-        ~output_vars ~use_fun_input_regs ~post_cond ~pre_cond ~mem_offset
+        ~output_vars ~use_fun_input_regs ~post_cond ~pre_cond ~mem_offset ~rewrite_pointers
     else
       analyze_proj proj var_gen ctx ~func ~to_inline ~use_fun_input_regs ~post_cond ~pre_cond
   in
@@ -279,7 +289,12 @@ module Cmdline = struct
       ~doc:"If set, at every memory read, adds an assumption to the precondition that \
             memory of the modified binary is the same as the original binary at an \
             offset calculated by aligning the data and bss sections of the binary. \
-            Defaults to true."
+            Defaults to false."
+
+  let rewrite_pointers = param bool "rewrite-pointers" ~as_flag:true ~default:false
+      ~doc:"If set, wp will attempt to rewrite pointers in the modified binary to \
+            have the same address as the original binary. If this flag is used, the \
+            mem_offset flag should be set to false. Defaults to false."
 
 
   let () = when_ready (fun {get=(!!)} ->
@@ -297,6 +312,7 @@ module Cmdline = struct
         ~print_path:!!print_path
         ~use_fun_input_regs:!!use_fun_input_regs
         ~mem_offset:!!mem_offset
+        ~rewrite_pointers:!!rewrite_pointers
     )
 
   let () = manpage [

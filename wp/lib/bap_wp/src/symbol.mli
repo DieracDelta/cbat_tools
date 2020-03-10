@@ -33,3 +33,9 @@ val get_symbols : string -> t list
     original binary to the address of the read in the modified binary. *)
 val offset_constraint :
   orig:(t list) -> modif:(t list) -> Z3.context -> Constr.z3_expr -> Constr.z3_expr
+
+(** Rewrites pointers in the modified to have the same address as the pointer in
+    the original binary. Determines which values are pointers by looking for
+    assignments where the values in the right hand size are within the range of
+    addresses in the modified symbol list. *)
+val rewrite_pointers : orig:(t list) -> modif:(t list) -> Bap.Std.Sub.t -> Bap.Std.Sub.t

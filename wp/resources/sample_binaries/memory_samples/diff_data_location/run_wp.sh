@@ -13,7 +13,8 @@ run () {
     --wp-file2=main_2.bpj \
     --wp-function=main \
     --wp-gdb-filename=diff_data_location.gdb \
-    --wp-mem-offset=1
+    --wp-mem-offset=true \
+    --wp-rewrite-pointers=false
 }
 
 compile && run
