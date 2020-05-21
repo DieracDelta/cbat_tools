@@ -157,10 +157,12 @@ let analyze_proj (ctx : Z3.context) (var_gen : Env.var_gen) (proj : project)
 
 let compare_projs (ctx : Z3.context) (var_gen : Env.var_gen) (proj : project)
     (flags : flags) : Constr.t * Env.t * Env.t =
-  let prog1 = Program.Io.read flags.file1 in
-  let prog2 = Program.Io.read flags.file2 in
-  (* Currently using the dummy binary's project to determine the architecture
-     until we discover a better way of determining the architecture from a program. *)
+  let tmp1 = Project.Input.file ~loader:"llvm" ~filename:(flags.file1) |> Project.create in
+  let tmp2 = Project.Input.file ~loader:"llvm" ~filename:(flags.file2) |> Project.create in
+  let prog1_wr = tmp1 |> Core_kernel.Or_error.ok_exn in
+  let prog2_wr = tmp2 |> Core_kernel.Or_error.ok_exn in
+  let prog1 = prog1_wr |> Project.program in
+  let prog2 = prog2_wr |> Project.program in
   let arch = Project.arch proj in
   let subs1 = Term.enum sub_t prog1 in
   let subs2 = Term.enum sub_t prog2 in
@@ -236,74 +238,74 @@ module Cmdline = struct
       ~doc:"Determines whether to analyze a single function or compare the same \
             function across two binaries. If enabled, project files must be specified \
             with the `file1' and `file2' options."
-
+  
   let file1 = param string "file1" ~default:""
       ~doc:"Project file location of the first binary for comparative analysis, \
             which can be generated via the save-project plugin. If both `file1' and \
             `file2' are specified, wp will automatically run the comparative analysis."
-
+  
   let file2 = param string "file2" ~default:""
       ~doc:"Project file location of the second binary for comparative analysis, \
             which can be generated via the save-project plugin. If both `file1' and \
             `file2' are specified, wp will automatically run the comparative analysis."
-
+  
   let func = param string "function" ~synonyms:["func"] ~default:"main"
       ~doc:"Function to run the wp analysis on. `main' by default. If the function \
             cannot be found in the binary or both binaries in the comparison \
             case, wp analysis should fail."
-
+  
   let check_calls = param bool "check-calls" ~as_flag:true ~default:false
       ~doc:"If set, compares which subroutines are invoked in the body of the \
             function. Otherwise, compares the return values computed in the function \
             body. This flag is only used in comparative analysis."
-
+  
   let inline = param (some string) "inline" ~default:None
       ~doc:"Function calls to inline as specified by a POSIX regular expression. \
             If not inlined, function summaries are used at function call time. \
             If you want to inline everything, set to .*  \
             foo|bar will inline the functions foo and bar."
-
+  
   let pre_cond = param string "precond" ~default:""
       ~doc:"Pre condition in SMT-LIB format used when analyzing a single binary. \
             If no pre condition is specified, a trivial pre condition (`true') \
             will be used."
-
+  
   let post_cond = param string "postcond" ~default:""
       ~doc:"Post condition in SMT-LIB format used when analyzing a single binary. \
             If no post condition is specified, a trivial post condition (`true') \
             will be used."
-
+  
   let num_unroll = param (some int) "num-unroll" ~default:None
       ~doc:"Amount of times to unroll each loop. By default, wp will unroll each \
             loop 5 times."
-
+  
   let output_vars = param (list string) "output-vars" ~default:["RAX"; "EAX"]
       ~doc:"List of output variables to compare separated by `,' given the same \
             input variables in the case of a comparative analysis. Defaults to `RAX,EAX' \
             which are the 64- and 32-bit output registers for x86."
-
+  
   let gdb_filename = param (some string) "gdb-filename" ~default:None
       ~doc:"Output gdb script file for counterexample. This script file sets a \
             breakpoint at the the start of the function being analyzed and sets \
             the registers and memory to the values specified in the countermodel."
-
+  
   let print_path = param bool "print-path" ~as_flag:true ~default:false
       ~doc:"If set, prints out the path to a refuted goal and the register values \
             at each jump in the path. The path contains information about whether \
             a jump has been taken and the address of the jump if found."
-
+  
   let use_fun_input_regs = param bool "use-fun-input-regs" ~as_flag:true  ~default:true
       ~doc:"If set, at a function call site, uses all possible input registers \
             as arguments to a function symbol generated for an output register \
             that represents the result of the function call. If set to false, no \
             registers will be used. Defaults to true."
-
+  
   let mem_offset = param bool "mem-offset" ~as_flag:true ~default:false
       ~doc:"If set, at every memory read, adds an assumption to the precondition that \
             memory of the modified binary is the same as the original binary at an \
             offset calculated by aligning the data and bss sections of the binary. \
             Defaults to false."
-
+  
   let check_null_deref = param bool "check-null-deref" ~as_flag:true ~default:false
       ~doc:"If set, the WP analysis will check for inputs that would result in \
             dereferencing a NULL value. In the case of a comparative analysis, \
