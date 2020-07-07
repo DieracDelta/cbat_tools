@@ -24,6 +24,16 @@ module Make (Machine : Primus.Machine.S) = struct
       let offset = Word.of_int ~width:addr_size i in
       Word.(+) addr offset)
 
+  let map_in_mem_addr ?size:(size = 1) addr : unit Machine.t =
+    let%bind is_mapped = Mem.is_mapped addr in
+    match is_mapped with
+    | true -> Machine.return ()
+    | false -> 
+      Mem.allocate
+        ~readonly:false
+        ~executable:false ~generator:(Primus.Generator.static 0)
+        Addr.(addr) size
+
   (* Read the specified number of words stored in memory, starting at
      the specified address. *)
   let read_loc ?addr_size:(addr_size=64) ?num_words:(num_words=1)
@@ -32,6 +42,7 @@ module Make (Machine : Primus.Machine.S) = struct
     let addresses = addresses_from addr ~addr_size ~num_words in
     List.fold addresses ~init:acc ~f:(fun acc addr ->
       let%bind words = acc in
+      let%bind _ = map_in_mem_addr addr in
       let%bind w = Mem.load addr in
       let acc' = List.append words [(addr, w)] in
       Machine.return acc')
@@ -49,6 +60,7 @@ module Make (Machine : Primus.Machine.S) = struct
         | true -> words
         | false -> List.append words [addr'] in
       Machine.return acc')
+
 
   (* Generates a screen that displays the data stored at a location.
      The [~num_words] specifies how many bytes to read, starting
@@ -102,39 +114,39 @@ module Make (Machine : Primus.Machine.S) = struct
           | Some addr' ->
             begin
 
-              (* Are any addresses we're going to road unmapped?
+              (* Are any addresses we're going to read unmapped?
                  If not, we can read them and display them. *)
-              let%bind addrs = unmapped addr' ~addr_size ~num_words in
-              match addrs with
-              | [] ->
-                begin      
-                  let%bind words = read_loc addr' ~addr_size ~num_words in
-                  let words_pretty =
-                    List.map words ~f:(fun w -> pretty (fst w) (snd w)) in
-                  let lines = Utils.tabulate words_pretty Ui.screen_width in
-                  let text = List.map lines ~f:(fun line ->
-                    Ui.mk_output ~color:Tty.Green line) in
-                  Machine.return (Event.screen () ~text ~prompt ~handler)
-                end
+              (*let%bind addrs = unmapped addr' ~addr_size ~num_words in*)
+              (*match addrs with*)
+              (*| [] ->*)
+                (*begin*)
+              let%bind words = read_loc addr' ~addr_size ~num_words in
+              let words_pretty =
+              List.map words ~f:(fun w -> pretty (fst w) (snd w)) in
+              let lines = Utils.tabulate words_pretty Ui.screen_width in
+              let text = List.map lines ~f:(fun line ->
+                Ui.mk_output ~color:Tty.Green line) in
+                Machine.return (Event.screen () ~text ~prompt ~handler)
+                (*end*)
 
               (* If some addresses aren't mapped, alert the user. 
                  Trying to read them would result in a page fault,
                  and cause Primus to exit. *)
-              | _ ->
-                begin
-                  let msg =
-                    "These addresses are unmapped and cannot be read from:" 
-                    in
-                  let words_pretty =
-                    List.map addrs ~f:(fun w -> Utils.string_of w) in
-                  let lines = Utils.tabulate words_pretty Ui.screen_width in
-                  let lines' = List.map lines ~f:(fun line ->
-                    Ui.mk_output ~color:Tty.Red line) in
-                  let text = List.append
-                    [Ui.mk_output ~color:Tty.Red msg]
-                    lines' in
-                  Machine.return (Event.screen () ~text ~prompt ~handler)
-                end
+              (*| _ ->*)
+                (*begin*)
+                  (*let msg =*)
+                    (*"These addresses are unmapped and cannot be read from:" *)
+                    (*in*)
+                  (*let words_pretty =*)
+                    (*List.map addrs ~f:(fun w -> Utils.string_of w) in*)
+                  (*let lines = Utils.tabulate words_pretty Ui.screen_width in*)
+                  (*let lines' = List.map lines ~f:(fun line ->*)
+                    (*Ui.mk_output ~color:Tty.Red line) in*)
+                  (*let text = List.append*)
+                    (*[Ui.mk_output ~color:Tty.Red msg]*)
+                    (*lines' in*)
+                  (*Machine.return (Event.screen () ~text ~prompt ~handler)*)
+                (*end*)
 
             end
 
