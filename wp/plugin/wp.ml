@@ -68,6 +68,10 @@ let compare_post_reg_values = Cmd.parameter Typ.(list string) "compare-post-reg-
           which registers to compare, x86_64 architectures place their \
           output in RAX, and ARM architectures place their output in R0."
 
+let pointer_reg_list = Cmd.parameter Typ.(list string) "pointer-reg-list"
+    ~doc:"flag that contains a list of input registers to be treated as \
+          pointers at the start of program execution."
+
 (* Options. *)
 
 let inline = Cmd.parameter Typ.(some string) "inline"
@@ -164,24 +168,25 @@ let stack_size = Cmd.parameter Typ.(some int) "stack-size"
 
 let grammar = Cmd.(
     args
-      $ func
-      $ precond
-      $ postcond
-      $ trip_asserts
-      $ check_null_derefs
-      $ compare_func_calls
-      $ compare_post_reg_values
-      $ inline
-      $ num_unroll
-      $ gdb_output
-      $ bildb_output
-      $ use_fun_input_regs
-      $ mem_offset
-      $ debug
-      $ show
-      $ stack_base
-      $ stack_size
-      $ files)
+    $ func
+    $ precond
+    $ postcond
+    $ trip_asserts
+    $ check_null_derefs
+    $ compare_func_calls
+    $ compare_post_reg_values
+    $ pointer_reg_list
+    $ inline
+    $ num_unroll
+    $ gdb_output
+    $ bildb_output
+    $ use_fun_input_regs
+    $ mem_offset
+    $ debug
+    $ show
+    $ stack_base
+    $ stack_size
+    $ files)
 
 (* The callback run when the command is invoked from the command line. *)
 let callback
@@ -192,6 +197,7 @@ let callback
     (check_null_derefs : bool)
     (compare_func_calls : bool)
     (compare_post_reg_values : string list)
+    (pointer_reg_list : string list)
     (inline : string option)
     (num_unroll : int option)
     (gdb_output : string option)
@@ -212,6 +218,7 @@ let callback
       check_null_derefs = check_null_derefs;
       compare_func_calls = compare_func_calls;
       compare_post_reg_values = compare_post_reg_values;
+      pointer_reg_list = pointer_reg_list;
       inline = inline;
       num_unroll = num_unroll;
       gdb_output = gdb_output;
