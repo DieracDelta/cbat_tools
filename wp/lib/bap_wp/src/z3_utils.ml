@@ -112,7 +112,7 @@ let mk_smtlib2_single (env : Env.t) (smt_post : string) : Constr.t =
   mk_smtlib2 ctx smt_post decl_syms
 
 let construct_pointer_constraint (l_orig : Constr.z3_expr list) (env1 : Env.t)
-    (l_mod : (Constr.z3_expr list) option) (env2: Env.t option) : Constr.t =
+    (l_mod : (Constr.z3_expr list) option) (env2: Env.t option) (offset : int option): Constr.t =
   let stack_end = Env.get_stack_end env1 in
   let ctx = Env.get_context env1 in
   let arch = match Env.get_arch env1 |> Bap.Std.Arch.addr_size with
@@ -128,12 +128,19 @@ let construct_pointer_constraint (l_orig : Constr.z3_expr list) (env1 : Env.t)
       let init_var_map_orig = Env.get_init_var_map env1 in
       let init_var_map_mod = Env.get_init_var_map env2 in
       (* we do want exceptions here if RSP doesn't exist *)
-      let rsp_orig = Option.value_exn
+      let rsp_orig_no_offset = Option.value_exn
           ~message:(function_name ^ "original " ^ err_msg_rsp)
           (get_z3_name init_var_map_orig rsp Var.name) in
-      let rsp_mod = Option.value_exn
+      let rsp_mod_no_offset = Option.value_exn
           ~message:(function_name ^ "modified " ^ err_msg_rsp)
           (get_z3_name init_var_map_mod rsp Var.name) in
+      let rsp_orig, rsp_mod =
+        match offset with
+        | Some offset_unwrapped ->
+          let offset_bv = Z3.BitVector.mk_numeral ctx (offset_unwrapped |> Int.to_string) arch in
+          Z3.BitVector.mk_add ctx rsp_orig_no_offset offset_bv,
+          Z3.BitVector.mk_add ctx rsp_mod_no_offset offset_bv
+        | None -> rsp_orig_no_offset, rsp_mod_no_offset in
       (* Encode constraint that each register is not within stack*)
       (fun acc (reg_orig, reg_mod) ->
          (* NOTE: we are assuming stack grows down.*)
@@ -157,8 +164,14 @@ let construct_pointer_constraint (l_orig : Constr.z3_expr list) (env1 : Env.t)
     (* single binary case *)
     | _, _ ->
       let init_var_map = Env.get_init_var_map env1 in
-      let stack_pointer = Option.value_exn ~message:err_msg_rsp
+      let stack_pointer_no_offset = Option.value_exn ~message:err_msg_rsp
           (get_z3_name init_var_map rsp Var.name) in
+      let stack_pointer = match offset with
+        | Some offset_unwrapped ->
+          let offset_bv = Z3.BitVector.mk_numeral ctx (offset_unwrapped |> Int.to_string) arch in
+          Z3.BitVector.mk_add ctx stack_pointer_no_offset offset_bv
+        | None -> stack_pointer_no_offset
+      in
       (fun acc (reg, _) ->
          (* R >= RSP_orig *)
          let uge = Z3.BitVector.mk_ugt ctx reg stack_pointer in

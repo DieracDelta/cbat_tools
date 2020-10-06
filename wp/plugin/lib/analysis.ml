@@ -160,13 +160,14 @@ let gen_pointer_flag_comparators
     (l : string list) (env1 : Env.t)
     (env2 : Env.t) (pointer_env1_vars : Var.t List.t)
     (pointer_env2_vars : Var.t List.t)
+    (pointer_offset : int option)
   : (Comp.comparator * Comp.comparator) option =
   if List.length l = 0 then None
   else
     let regs_orig = List.filter_map pointer_env1_vars ~f:(fun var -> Env.get_init_var env1 var) in
     let regs_mod = List.filter_map pointer_env2_vars ~f:(fun var -> Env.get_init_var env2 var) in
     let pre_conds = Z3_utils.construct_pointer_constraint regs_orig env1
-        (Some regs_mod) (Some env2) in
+        (Some regs_mod) (Some env2) pointer_offset in
     let post_conds = Env.trivial_constr env1 in
     Comp.compare_subs_constraints ~pre_conds ~post_conds |> Some
 
@@ -189,7 +190,7 @@ let comparators_of_flags
     smtlib ~precond:p.precond ~postcond:p.postcond;
     sp arch;
     gen_pointer_flag_comparators p.pointer_reg_list
-      env1 env2 pointer_env1_vars pointer_env2_vars;
+      env1 env2 pointer_env1_vars pointer_env2_vars p.pointer_offset;
   ] |> List.filter_opt
   in
   let comps =
@@ -227,7 +228,7 @@ let single (bap_ctx : ctxt) (z3_ctx : Z3.context) (var_gen : Env.var_gen)
     then
       let z3_exprs = List.filter_map (Bap.Std.Var.Set.to_list vars_pointer_reg)
           ~f:(fun var -> Env.get_init_var env var) in
-      (Z3_utils.construct_pointer_constraint z3_exprs env None None) :: hyps
+      (Z3_utils.construct_pointer_constraint z3_exprs env None None p.pointer_offset) :: hyps
     else hyps in
   let post =
     if String.is_empty p.postcond then

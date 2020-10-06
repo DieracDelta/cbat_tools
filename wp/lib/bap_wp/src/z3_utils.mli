@@ -57,4 +57,4 @@ val mk_smtlib2 : Z3.context -> string -> ((Z3.FuncDecl.func_decl * Z3.Symbol.sym
     all specified registers cannot point to the uninitalized stack region.
     They must be either below the bottom of the stack or above the initial
     stack pointer. *)
-val construct_pointer_constraint : Constr.z3_expr list -> Env.t -> (Constr.z3_expr list) option -> Env.t option -> Constr.t
+val construct_pointer_constraint : Constr.z3_expr list -> Env.t -> (Constr.z3_expr list) option -> Env.t option -> int option -> Constr.t

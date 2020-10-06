@@ -82,12 +82,16 @@ let compare_post_reg_values = Cmd.parameter Typ.(list string) "compare-post-reg-
            output in RAX, and ARM architectures place their output in R0.|}
 
 let pointer_reg_list = Cmd.parameter Typ.(list string) "pointer-reg-list"
-    ~doc:"{|This flag specifies a comma delimited list of input registers to be
+    ~doc:{|This flag specifies a comma delimited list of input registers to be
           treated as pointers at the start of program execution. This means
           that these registers are restricted in value to point to memory
           known to be initialized at the start of the function. For example,
           `RSI,RDI` would specify that `RSI` and `RDI`'s values should be
-          restricted to initialized memory at the start of execution.|}"
+          restricted to initialized memory at the start of execution.|}
+
+let pointer_offset = Cmd.parameter Typ.(some int) "pointer-offset"
+    ~doc:{|the offset above the stack pointer to restrict marked pointers with.
+           only to be used with pointer-reg-list|}
 
 (* Options. *)
 
@@ -190,6 +194,7 @@ let grammar = Cmd.(
     $ compare_func_calls
     $ compare_post_reg_values
     $ pointer_reg_list
+    $ pointer_offset
     $ inline
     $ num_unroll
     $ gdb_output
@@ -212,6 +217,7 @@ let callback
     (compare_func_calls : bool)
     (compare_post_reg_values : string list)
     (pointer_reg_list : string list)
+    (pointer_offset : int option)
     (inline : string option)
     (num_unroll : int option)
     (gdb_output : string option)
@@ -233,6 +239,7 @@ let callback
       compare_func_calls = compare_func_calls;
       compare_post_reg_values = compare_post_reg_values;
       pointer_reg_list = pointer_reg_list;
+      pointer_offset = pointer_offset;
       inline = inline;
       num_unroll = num_unroll;
       gdb_output = gdb_output;

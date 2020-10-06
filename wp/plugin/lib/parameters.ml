@@ -38,6 +38,7 @@ type t = {
   compare_func_calls : bool;
   compare_post_reg_values : string list;
   pointer_reg_list : string list;
+  pointer_offset: int option;
   inline : string option;
   num_unroll : int option;
   gdb_output : string option;
