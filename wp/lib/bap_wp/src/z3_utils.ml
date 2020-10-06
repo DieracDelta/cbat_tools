@@ -114,6 +114,7 @@ let mk_smtlib2_single (env : Env.t) (smt_post : string) : Constr.t =
 let construct_pointer_constraint (l_orig : Constr.z3_expr list) (env1 : Env.t)
     (l_mod : (Constr.z3_expr list) option) (env2: Env.t option) (offset : int option): Constr.t =
   let stack_end = Env.get_stack_end env1 in
+  let stack_start = Env.get_stack_start env1 in
   let ctx = Env.get_context env1 in
   let arch = match Env.get_arch env1 |> Bap.Std.Arch.addr_size with
     | `r32 -> 32
@@ -122,6 +123,7 @@ let construct_pointer_constraint (l_orig : Constr.z3_expr list) (env1 : Env.t)
   let function_name = "construct_pointer_constraint: " in
   let err_msg_rsp = "stack pointer not found" in
   let sb_bv = Z3.BitVector.mk_numeral ctx (stack_end |> Int.to_string) arch in
+  let st_bv = Z3.BitVector.mk_numeral ctx (stack_start |> Int.to_string) arch in
   let gen_constr, l = match l_mod, env2 with
     (* comparative case *)
     | Some l_mod, Some env2 ->
@@ -144,18 +146,28 @@ let construct_pointer_constraint (l_orig : Constr.z3_expr list) (env1 : Env.t)
       (* Encode constraint that each register is not within stack*)
       (fun acc (reg_orig, reg_mod) ->
          (* NOTE: we are assuming stack grows down.*)
+
+         let below_top_orig = Z3.BitVector.mk_ule ctx rsp_orig st_bv in
+         let below_top_mod = Z3.BitVector.mk_ule ctx reg_mod st_bv in
+
          (* R_orig >= RSP_orig *)
          let uge_1 = Z3.BitVector.mk_uge ctx reg_orig rsp_orig in
          (* R_mod >= RSP_mod *)
          let uge_2 = Z3.BitVector.mk_uge ctx reg_mod rsp_mod in
+
+         let in_top_region_orig = Z3.Boolean.mk_and ctx [uge_1; below_top_orig] in
+         let in_top_region_mod = Z3.Boolean.mk_and ctx [uge_2; below_top_mod] in
+
          (*  R_orig <= stack_bottom *)
          let ule_1 =  Z3.BitVector.mk_ule ctx reg_orig sb_bv in
          (* R_mod <= stack_bottom *)
          let ule_2 =  Z3.BitVector.mk_ule ctx reg_mod sb_bv in
          (* R_orig >= RSP \/ R_orig <= stack_bottom *)
-         let or_c_1 = Z3.Boolean.mk_or ctx [uge_1; ule_1] in
+         let or_c_1 = Z3.Boolean.mk_or ctx [in_top_region_orig; ule_1] in
          (* R_mod >= RSP \/ R_mod <= stack_bottom *)
-         let or_c_2 = Z3.Boolean.mk_or ctx [uge_2; ule_2] in
+         let or_c_2 = Z3.Boolean.mk_or ctx [in_top_region_mod; ule_2] in
+
+
          (* (R_orig >= RSP \/ R_orig <= stack_bottom) /\
             (R_mod >= RSP \/ R_mod <= stack_bottom)     *)
          let and_c = Z3.Boolean.mk_and ctx [or_c_1; or_c_2;] in
@@ -175,10 +187,12 @@ let construct_pointer_constraint (l_orig : Constr.z3_expr list) (env1 : Env.t)
       (fun acc (reg, _) ->
          (* R >= RSP_orig *)
          let uge = Z3.BitVector.mk_ugt ctx reg stack_pointer in
+         let below_top = Z3.BitVector.mk_ule ctx reg st_bv in
+         let in_top_region = Z3.Boolean.mk_and ctx [uge; below_top] in
          (* R <= stack_bottom *)
          let ule = Z3.BitVector.mk_ult ctx reg sb_bv in
          (* R >= RSP \/ R <= stack_bottom *)
-         let or_c = Z3.Boolean.mk_or ctx [uge; ule] in
+         let or_c = Z3.Boolean.mk_or ctx [in_top_region; ule] in
          Z3.Boolean.mk_and ctx [or_c; acc]
       ), List.zip_exn l_orig l_orig
   in

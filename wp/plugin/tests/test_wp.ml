@@ -219,6 +219,9 @@ let suite = [
   "Test without pointer flag"      >: test_plugin "pointer_flag" sat ~script:"run_wp_sat.sh";
   "Test with pointer flag"         >: test_plugin "pointer_flag" unsat ~script:"run_wp_unsat.sh";
 
+  "Test with pointer offset unsat"         >: test_plugin "pointer_flag_offset" unsat ~script:"run_wp_unsat.sh";
+  "Test with pointer offset sat"         >: test_plugin "pointer_flag_offset" sat ~script:"run_wp_sat.sh";
+
   "Loop unrolling comparative" >: test_plugin "loop/loop_depth_one" unsat ~script:"run_wp_compare.sh";
 
   (* Test single elf *)

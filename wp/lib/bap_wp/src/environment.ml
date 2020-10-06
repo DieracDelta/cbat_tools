@@ -450,6 +450,9 @@ let in_stack (env : t) : Constr.z3_expr -> Constr.z3_expr =
 let get_stack_end (env : t) : int =
   env.stack.base_addr - env.stack.size
 
+let get_stack_start (env : t) : int =
+  env.stack.base_addr
+
 (* Returns a function that takes in a memory address as a z3_expr and outputs a
    z3_expr that checks if that address is within the data section. *)
 let in_data_section (env : t) : Constr.z3_expr -> Constr.z3_expr =

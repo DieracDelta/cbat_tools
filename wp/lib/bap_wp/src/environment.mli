@@ -262,6 +262,8 @@ val in_stack : t -> Constr.z3_expr -> Constr.z3_expr
      can take. *)
 val get_stack_end: t -> int
 
+val get_stack_start: t -> int
+
 (** [in_data_section env addr] is the constraint [DATA_MIN <= addr < DATA_MAX] as
     defined by the concrete range of the data section in the env. *)
 val in_data_section : t -> Constr.z3_expr -> Constr.z3_expr
